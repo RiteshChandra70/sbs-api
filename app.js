@@ -1,5 +1,6 @@
 require('dotenv').config()
 const express = require('express')
+const cors = require('cors')
 const app = express()
 const userRoute = require('./Routes/user')
 const contactRoute = require('./Routes/contact')
@@ -18,6 +19,7 @@ const fileUpload = require('express-fileupload')
 
 const connectWithDatabase = async() => {
     try {
+        // console.log(process.env.MONGODB_URL);
         await mongoose.connect(process.env.MONGODB_URL)
         console.log("Connected with database")
     }
@@ -28,6 +30,8 @@ const connectWithDatabase = async() => {
 }
 
 connectWithDatabase()
+
+app.use(cors())
 
 app.use(fileUpload({
     useTempFiles : true,
