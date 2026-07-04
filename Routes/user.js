@@ -6,37 +6,75 @@ const jwt = require('jsonwebtoken')
 
 
 // Signup route
-Router.post('/signup',async(req, res) => {
-    try{
-        const data = await User.find({email:req.body.email})
-        if(data.length>0){
-            return res.status(500).json({
-                message:"email already exist"
-            })
+Router.post("/signup", async (req, res) => {
+    try {
+
+        const { fullName, phone, email, password } = req.body;
+
+        // Check required fields
+        if (!fullName || !phone || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "All fields are required"
+            });
         }
-        const hash = await bcrypt.hash(req.body.password,10)
+
+        // Convert email to lowercase
+        const userEmail = email.toLowerCase().trim();
+
+        // Check existing user
+        const existingUser = await User.findOne({ email: userEmail });
+
+        if (existingUser) {
+            return res.status(409).json({
+                success: false,
+                message: "Email already exists"
+            });
+        }
+
+        // Hash password
+        const hashPassword = await bcrypt.hash(password, 10);
+
+        // Create user
         const newUser = new User({
-            fullName:req.body.fullName,
-            phone:req.body.phone,
-            email:req.body.email,
-            password:hash
-        })
-        const result = await newUser.save()
-        res.status(200).json({
-            data:{
-            fullName:result.fullName,
-            email:result.email,
-            phone:result.phone
+            fullName,
+            phone,
+            email: userEmail,
+            password: hashPassword
+        });
+
+        const result = await newUser.save();
+
+        return res.status(201).json({
+            success: true,
+            message: "Account created successfully",
+            data: {
+                id: result._id,
+                fullName: result.fullName,
+                phone: result.phone,
+                email: result.email
+            }
+        });
+
+    } catch (err) {
+        console.error(err);
+
+        // Duplicate key error from MongoDB
+        if (err.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: "Email already exists"
+            });
         }
-        })
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error"
+        });
     }
-    catch(err){
-        console.log(err)
-        res.status(500).json({
-            msg : "something is wrong"
-        })
-    }
-})
+});
+
+module.exports = Router;
 
 
 // login api
