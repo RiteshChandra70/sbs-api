@@ -1,17 +1,20 @@
-const express = require('express')
-const User = require('../models/User')
-const Router = express.Router()
-const bcrypt = require('bcrypt')
-const jwt = require('jsonwebtoken')
+const express = require("express");
+const Router = express.Router();
+const User = require("../models/User");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 
-// Signup route
+// =======================
+// SIGNUP API
+// =======================
+
 Router.post("/signup", async (req, res) => {
     try {
 
         const { fullName, phone, email, password } = req.body;
 
-        // Check required fields
+        // Validate Fields
         if (!fullName || !phone || !email || !password) {
             return res.status(400).json({
                 success: false,
@@ -19,10 +22,9 @@ Router.post("/signup", async (req, res) => {
             });
         }
 
-        // Convert email to lowercase
         const userEmail = email.toLowerCase().trim();
 
-        // Check existing user
+        // Check Existing User
         const existingUser = await User.findOne({ email: userEmail });
 
         if (existingUser) {
@@ -32,10 +34,10 @@ Router.post("/signup", async (req, res) => {
             });
         }
 
-        // Hash password
+        // Hash Password
         const hashPassword = await bcrypt.hash(password, 10);
 
-        // Create user
+        // Save User
         const newUser = new User({
             fullName,
             phone,
@@ -48,18 +50,19 @@ Router.post("/signup", async (req, res) => {
         return res.status(201).json({
             success: true,
             message: "Account created successfully",
-            data: {
+            user: {
                 id: result._id,
                 fullName: result.fullName,
-                phone: result.phone,
-                email: result.email
+                email: result.email,
+                phone: result.phone
             }
         });
 
     } catch (err) {
-        console.error(err);
 
-        // Duplicate key error from MongoDB
+        console.log(err);
+
+        // MongoDB Duplicate Key Error
         if (err.code === 11000) {
             return res.status(409).json({
                 success: false,
@@ -74,58 +77,82 @@ Router.post("/signup", async (req, res) => {
     }
 });
 
+
+// =======================
+// LOGIN API
+// =======================
+
+Router.post("/login", async (req, res) => {
+
+    try {
+
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "Email and Password are required"
+            });
+        }
+
+        const user = await User.findOne({
+            email: email.toLowerCase().trim()
+        });
+
+        // Email Not Found
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "Email is not registered"
+            });
+        }
+
+        // Password Compare
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid Password"
+            });
+        }
+
+        // JWT Token
+        const token = jwt.sign(
+            {
+                userId: user._id,
+                fullName: user.fullName,
+                email: user.email
+            },
+            process.env.SEC_KEY,
+            {
+                expiresIn: "24h"
+            }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Login Successful",
+            token,
+            fullName: user.fullName,
+            // user: {
+            //     id: user._id,
+            //     fullName: user.fullName,
+            //     email: user.email,
+            //     phone: user.phone
+            // }
+        });
+
+    } catch (err) {
+
+        console.log(err);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error"
+        });
+    }
+
+});
+
 module.exports = Router;
-
-
-// login api
-Router.post('/login',async(req,res)=>{
-    try
-    {
-        const user = await User.find({email:req.body.email})
-        // console.log(user)
-        if(user.length == 0)
-        {
-            return res.status(500).json({
-                error:'email not registered....'
-            })
-        }
-
-        const isMatch = await bcrypt.compare(req.body.password,user[0].password)
-        if(!isMatch)
-        {
-            return res.status(500).json({
-                error:'invalid password'
-            })
-        }
-
-        const appToken = await jwt.sign({
-            userId:user[0]._id,
-            fullName:user[0].fullName,
-            email:user[0].email
-        },
-        (process.env.SEC_KEY),
-        {
-            expiresIn:'24h'
-        }
-    )
-     
-    res.status(200).json({
-        token:appToken
-    })
-
-
-
-
-    }
-    catch(err)
-    {
-        console.log(err)
-        res.status(500).json({
-            error:err
-        })
-    }
-})
-
-
-
-module.exports = Router
